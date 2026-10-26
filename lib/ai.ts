@@ -97,7 +97,7 @@ export async function agentChat(cfg: RuntimeConfig, messages: ChatMessage[], lan
       return await meterlessChat(cfg.meterless, messages, { model });
     } catch (e) {
       // A hosted demo cannot reach a laptop hotspot; fall through to the same
-      // Nemotron lane on NVIDIA's hosted endpoint so the product still runs.
+      // configured hosted OpenAI-compatible lane so the product still runs.
       if (!cfg.nvidia.apiKey) throw e;
     }
   }

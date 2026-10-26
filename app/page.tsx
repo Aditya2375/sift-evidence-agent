@@ -106,7 +106,7 @@ export default function Console() {
         <span className="tagline">Ask why. Get an investigation with receipts, not a vibe.</span>
         <span className="status-dot mono">
           <span>Zetaris {health ? (health.zetaris?.ok ? <b className="ok">federated</b> : <b className="bad">down</b>) : <b className="warn">...</b>}</span>
-          <span>Reasoning {health ? <b className="ok">{health.provider === "meterless" ? "meterless" : "nemotron"}</b> : <b className="warn">...</b>}</span>
+          <span>Reasoning {health ? <b className="ok">{health.provider === "meterless" ? "meterless" : "gemini"}</b> : <b className="warn">...</b>}</span>
         </span>
       </header>
 
@@ -225,7 +225,7 @@ export default function Console() {
       </div>
 
       <footer>
-        Sift investigates on a signed Scout contract, recalls prior cases from hierarchical memory, reasons in bounded Markovian chunks, and queries a Zetaris Lightning federation - ledger CSVs, field notes and a REST-registered bureau feed joined in one SQL plane. Reasoning runs on the Meterless Runtime contract (NVIDIA Nemotron lanes on this hosted demo; a local Nightshift hotspot works unchanged). Demo data is fully synthetic.
+        Sift investigates on a signed Scout contract, recalls prior cases from hierarchical memory, reasons in bounded Markovian chunks, and queries a Zetaris Lightning federation - ledger CSVs, field notes and a REST-registered bureau feed joined in one SQL plane. Reasoning runs on the Meterless Runtime contract (Gemini lanes over the OpenAI-compatible bridge on this hosted demo; a local Nightshift hotspot works unchanged). Demo data is fully synthetic.
       </footer>
     </div>
   );
