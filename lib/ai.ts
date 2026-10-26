@@ -119,7 +119,7 @@ export async function agentChat(cfg: RuntimeConfig, messages: ChatMessage[], lan
     }
   }
   const model = lane === "deep" ? cfg.nvidia.modelDeep ?? cfg.nvidia.model : cfg.nvidia.model;
-  return nvidiaChat(cfg.nvidia, messages, { maxTokens: lane === "deep" ? 1200 : 800 });
+  return nvidiaChat(cfg.nvidia, messages, { maxTokens: lane === "deep" ? 800 : 800 });
 }
 
 export function runtimeConfigFromEnv(): RuntimeConfig {
