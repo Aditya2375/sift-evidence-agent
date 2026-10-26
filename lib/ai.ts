@@ -66,7 +66,7 @@ export interface NvidiaConfig { apiKey: string; model: string; baseUrl?: string 
 export async function nvidiaChat(cfg: NvidiaConfig, messages: ChatMessage[], opts?: { temperature?: number; maxTokens?: number }): Promise<string> {
   const base = cfg.baseUrl ?? "https://integrate.api.nvidia.com/v1";
   // Hosted lanes occasionally return transient 503/429 under load; retry with backoff.
-  const delays = [0, 8000, 20000];
+  const delays = [0, 3000, 8000, 15000, 25000, 35000];
   let lastErr: unknown;
   for (let attempt = 0; attempt < delays.length; attempt++) {
     if (delays[attempt]) await new Promise((r) => setTimeout(r, delays[attempt]));
@@ -82,7 +82,7 @@ export async function nvidiaChat(cfg: NvidiaConfig, messages: ChatMessage[], opt
           max_tokens: opts?.maxTokens ?? 2048,
           stream: false,
         }),
-        signal: AbortSignal.timeout(120_000),
+        signal: AbortSignal.timeout(60_000),
       });
     } catch (e) {
       lastErr = e; // network error or timeout: retry
