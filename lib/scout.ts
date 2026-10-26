@@ -138,7 +138,7 @@ export async function decide(input: { prompt: string; surface?: string; role?: s
     flags.push("sensitivity:broad-set");
     risk = risk === "low" ? "medium" : risk;
   }
-  if (confidence < 0.25) {
+  if (confidence < 0.08) {
     return { kind: "clarify", candidates, flags, reason: "I am not confident which credit intent you mean. Pick one of the suggested intents or rephrase." };
   }
 
