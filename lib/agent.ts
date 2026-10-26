@@ -25,11 +25,12 @@ or, when you have enough evidence, a line containing only CONCLUDE, then your re
 Federated tables in Zetaris (schema LENDING):
   LENDING.BORROWERS(id, name, segment, region, district, since)   -- id like B-041
   LENDING.LOANS(id, borrowerId, principal, ratePct, termMonths, startMonth, status)
-  LENDING.PAYMENTS(loanId, month, due, paid, paidOnTime)   -- month like 2026-08; paidOnTime boolean
+  LENDING.PAYMENTS(loanId, month, due, paid, paidOnTime)   -- month is a string like '2026-08-01 00:00:00.0' (use LIKE '2026-08%' or compare as text); paidOnTime is the string 'true' or 'false'
   LENDING.FIELD_NOTES(id, borrowerId, date, author, note)
-  LENDING.BUREAU_SCORES(borrower_id, month, score, band)   -- REST-federated bureau table
-Joins: PAYMENTS.loanId = LOANS.id, LOANS.borrowerId = BORROWERS.id, BUREAU_SCORES.borrower_id = BORROWERS.id.
-Rules: one directive per step. Prefer aggregates. Cite evidence ids in your final reasoning.`;
+Joins: PAYMENTS.loanId = LOANS.id, LOANS.borrowerId = BORROWERS.id.
+Bureau scores come from the BUREAU directive, not SQL. Spark SQL dialect: information_schema is not available; use the table list above exactly.
+Rules: one directive per step. Prefer aggregates. Cite evidence ids in your final reasoning.
+Recalled case memory is precedent only: it may suggest what to check, but it is never proof of the cause for the period asked about. Base every conclusion on SQL or BUREAU results you actually ran for this question. If the data does not support a cause, conclude that the cause is not established and say what data would settle it.`;
 
 export interface InvestigationResult {
   decision: Decision;
@@ -123,7 +124,7 @@ export async function investigate(question: string, emit: (e: AgentEvent) => voi
   // Stage 4: compose the cited report from the compressed final state + evidence index.
   const evIndex = evidence.map((e) => `${e.id} [${e.kind}] ${e.label}: ${e.detail}${e.rows ? " -> " + JSON.stringify(e.rows.slice(0, 6)) : ""}`).join("\n");
   const report = await agentChat(ai, [
-    { role: "system", content: `Write the analyst's answer. Structure: **Answer** (one sentence), **Why** (the causal chain, each claim citing its evidence id like (E3)), **What it is NOT** (ruled-out explanations, cited), **Recommended action** (specific, conservative). Under 350 words. Never cite evidence not in the index.` },
+    { role: "system", content: `Write the analyst's answer. Structure: **Answer** (one sentence), **Why** (the causal chain, each claim citing its evidence id like (E3)), **What it is NOT** (ruled-out explanations, cited), **Recommended action** (specific, conservative). Under 350 words. Never cite evidence not in the index. Evidence marked [memory] is precedent from an earlier case: cite it only as precedent (for example, a similar dip in a past period was operational), never as the cause of this period. State a cause only if the SQL or bureau evidence supports it; if it does not, write Answer as: Cause not established by the data, and recommend the next query or field check.` },
     { role: "user", content: `Question: ${contract.params.question}\n\nFinal investigation state:\n${run.chunks.map((c) => c.content).join("\n---\n").slice(0, 9000)}\n\nEvidence index:\n${evIndex}` },
   ], "deep");
   emit({ type: "report", data: { report, evidence } });
