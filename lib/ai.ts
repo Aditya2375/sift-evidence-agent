@@ -65,21 +65,38 @@ export interface NvidiaConfig { apiKey: string; model: string; baseUrl?: string 
 
 export async function nvidiaChat(cfg: NvidiaConfig, messages: ChatMessage[], opts?: { temperature?: number; maxTokens?: number }): Promise<string> {
   const base = cfg.baseUrl ?? "https://integrate.api.nvidia.com/v1";
-  const res = await fetch(`${base}/chat/completions`, {
-    method: "POST",
-    headers: { Authorization: `Bearer ${cfg.apiKey}`, "Content-Type": "application/json" },
-    body: JSON.stringify({
-      model: cfg.model,
-      messages,
-      temperature: opts?.temperature ?? 0.2,
-      max_tokens: opts?.maxTokens ?? 2048,
-      stream: false,
-    }),
-    signal: AbortSignal.timeout(120_000),
-  });
-  if (!res.ok) throw new Error(`NVIDIA NIM: HTTP ${res.status} ${(await res.text().catch(() => "")).slice(0, 200)}`);
-  const data = await res.json();
-  return data?.choices?.[0]?.message?.content ?? "";
+  // Hosted lanes occasionally return transient 503/429 under load; retry with backoff.
+  const delays = [0, 8000, 20000];
+  let lastErr: unknown;
+  for (let attempt = 0; attempt < delays.length; attempt++) {
+    if (delays[attempt]) await new Promise((r) => setTimeout(r, delays[attempt]));
+    let res: Response;
+    try {
+      res = await fetch(`${base}/chat/completions`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${cfg.apiKey}`, "Content-Type": "application/json" },
+        body: JSON.stringify({
+          model: cfg.model,
+          messages,
+          temperature: opts?.temperature ?? 0.2,
+          max_tokens: opts?.maxTokens ?? 2048,
+          stream: false,
+        }),
+        signal: AbortSignal.timeout(120_000),
+      });
+    } catch (e) {
+      lastErr = e; // network error or timeout: retry
+      continue;
+    }
+    if (res.ok) {
+      const data = await res.json();
+      return data?.choices?.[0]?.message?.content ?? "";
+    }
+    const body = (await res.text().catch(() => "")).slice(0, 200);
+    lastErr = new Error(`NVIDIA NIM: HTTP ${res.status} ${body}`);
+    if (res.status !== 429 && res.status < 500) break; // auth/bad-request: retrying won't help
+  }
+  throw lastErr instanceof Error ? lastErr : new Error(String(lastErr));
 }
 
 // --- unified entry point -----------------------------------------------------
