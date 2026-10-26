@@ -115,6 +115,7 @@ export function runtimeConfigFromEnv(): RuntimeConfig {
     },
     nvidia: {
       apiKey: process.env.NVIDIA_API_KEY ?? "",
+      baseUrl: process.env.NVIDIA_BASE_URL || undefined,
       model: process.env.NVIDIA_MODEL_FAST ?? "nvidia/llama-3.3-nemotron-super-49b-v1.5",
       modelDeep: process.env.NVIDIA_MODEL_DEEP ?? "nvidia/llama-3.3-nemotron-super-49b-v1.5",
     },
