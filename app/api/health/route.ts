@@ -1,14 +1,2 @@
-import { zetarisHealth, zetarisConfigFromEnv } from "@/lib/zetaris";
-import { meterlessStatus, runtimeConfigFromEnv } from "@/lib/ai";
-
-export const runtime = "nodejs";
-
-export async function GET() {
-  const z = await zetarisHealth(zetarisConfigFromEnv()).catch((e) => ({ ok: false, detail: String(e) }));
-  const ai = runtimeConfigFromEnv();
-  let meterless = null;
-  if (ai.provider === "meterless" && ai.meterless.baseUrl) {
-    meterless = await meterlessStatus(ai.meterless).catch((e) => ({ status: "offline", detail: String(e) }));
-  }
-  return Response.json({ zetaris: z, provider: ai.provider, meterless, nvidiaKeySet: !!ai.nvidia.apiKey });
-}
+export const runtime="nodejs";
+export async function GET(){return Response.json({accessConfigured:!!process.env.SIFT_ACCESS_TOKEN&&process.env.SIFT_ACCESS_TOKEN.length>=32,zetaris:{ok:false,detail:"Not probed by this public status endpoint"},providerConfigured:!!process.env.NVIDIA_API_KEY||!!process.env.METERLESS_RUNTIME_TOKEN,provider:process.env.SIFT_PROVIDER||"nvidia",providerVerified:false},{headers:{"Cache-Control":"no-store"}})}
