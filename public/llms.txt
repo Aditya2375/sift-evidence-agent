@@ -1,0 +1,2 @@
+# Sift
+Synthetic lending evidence demonstration, not lending advice. Public model endpoints fail closed pending private access. Database connectivity, deployed provider identity and distributed abuse controls require verification. No letters sent, files written or persistent cross-run memories.
