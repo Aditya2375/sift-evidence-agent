@@ -1,60 +1,24 @@
-# Sift: an evidence agent for credit analysts
+# Sift / Synthetic evidence demonstration
 
-Sift answers "why" questions about a lending portfolio and shows its evidence. Every claim in an answer links to the SQL that was run, the field note that was read, or the past case that was recalled. If the data does not support a cause, Sift says so instead of guessing.
+Live: https://sift-evidence-agent.vercel.app/
+Health/status: https://sift-evidence-agent.vercel.app/api/health
 
-Built for the Open Agent hackathon, Track 02: Agent That Can Explain Why.
+Synthetic lending-portfolio demonstration, not a credit decision or financial advice. Uses deterministic synthetic borrowers/loans/payments and seeded precedent memory. New memory is process-local to one investigation, not persistent learning. Bureau evidence is computed by a local synthetic function, not a network bureau pull. SQL evidence requires a reachable, separately configured Zetaris instance. Public status reports configuration only, not verified connectivity or model identity. The last live pre-fix check returned Zetaris login HTTP 404.
 
-- Live app: https://sift-evidence-agent.vercel.app/
-- Health check: https://sift-evidence-agent.vercel.app/api/health
+## Safe deployment boundary
 
-## The problem
+Model-backed investigate/action endpoints fail closed unless SIFT_ACCESS_TOKEN is configured to at least 32 characters and the request supplies the exact private bearer token. Do not put this secret in client code or public repositories. The public UI has no token collection or storage. Enable generation only behind an authenticated server-side gateway with a durable rate limiter, usage budget and server-only secret handling. Those deployment controls remain BLOCKED/unconfigured in this audit. No paid or model generation request was used in QA.
 
-A credit analyst sees a number move, for example on-time payments in one region falling from 100% to 50%, and has to answer "why" before the next committee. The data sits in several systems, field notes are free text, and past cases live in people's heads. Answers are slow, and a wrong confident answer is worse than none.
+The access gate is not a durable distributed quota. Restricted SELECT validation rejects comments, multiple statements, procedural keywords, unknown tables and functions; it is a conservative lexical guard, not a full SQL parser. Database credentials MUST be read-only and limited to the four synthetic LENDING tables. Endpoint limits: 8KB JSON objects and 2000-character questions, bounded SSE buffer and client timeout. Billable generation is never automatically retried or silently sent to another provider. Server cancellation cannot guarantee a provider stopped an already accepted request.
 
-## What Sift does
+Scout signatures now have process-random fallback keys (not a known default), expiry and constant-time comparison. Intent classification and signatures do not authenticate an analyst or guarantee prompt-injection safety. Any matched bulk-PII intent is refused. Approval is an in-memory demo acknowledgment only: no borrower file is written and nothing is sent. Pending demo drafts expire in five minutes and may disappear on restart or cross-instance routing.
 
-1. **Scout** reads the question and maps it to a registered intent (investigate, draft an action, bulk export). Each request becomes a signed execution contract with a risk class. Bulk personal-data export is blocked. Drafting actions is high risk and sends nothing on its own.
-2. **Memory** (H-MEM) recalls closed cases with provenance and confidence. Recalled cases are used only as precedent: "a similar dip in March was operational". They are never used as the cause of the current question.
-3. **Zetaris** is the data layer. Sift writes Lightning SQL and runs it on a Zetaris instance over borrowers, loans, payments and field notes. Conclusions come only from the SQL that actually ran.
-4. **Markovian chunked reasoning** runs long investigations as bounded chunks. Each chunk sees the goal and a compressed carryover state, so context stays flat as the chain grows. Run stats show tokens used and saved.
-5. **Report** returns an answer, the reasoning, what the cause is not, a recommended action, and the evidence list (E1, E2, ...) with the exact SQL and rows.
+## Run
 
-## Sponsor technology
+npm install; npm run dev; npm run build. Environment names are in .env.example. Configure actual server-owned provider and Zetaris connections separately; this audit did not inspect credentials or change account security. Token counts and savings are estimates, not provider billing metrics. Cause/evidence text is model output and needs analyst review.
 
-- **Zetaris** (required): all portfolio data is queried through Zetaris Lightning SQL over its REST API (`/api/auth/login`, `/api/proxy/query/sql/start`). The `LENDING` database holds borrowers, loans, payments, field notes and bureau data, all synthetic. Zetaris ran as the free local Docker distribution.
-- **Meterless Runtime** (required): the model layer implements the Meterless Runtime contract (v0.90.0) in `lib/ai.ts`: base URL, runtime token and `meterless/auto` model routing.
+## Remaining checks
 
-### Honest note on the model actually used
+Restore and verify the Zetaris connection; provision read-only DB permissions; configure private access plus durable distributed abuse/spend limits; then run an authorized end-to-end investigation using synthetic data. Actual provider/model availability is unverified. Do not assert a particular vendor, model, runtime compatibility or current price from configuration defaults alone.
 
-The Nightshift desktop app has no Linux build, so the hosted demo could not run it. The demo routes through the documented OpenAI-compatible bridge instead, and the model that answers in the live demo is **Gemini (gemini-3.5-flash-lite) through that OpenAI-compatible bridge**. It is not Nemotron. The Nemotron default in the config is only a fallback and is not running in the demo. Real Nightshift works unchanged on Mac and Windows by setting the Meterless environment variables below.
-
-## Run it
-
-```
-npm install
-npm run dev
-```
-
-Environment variables:
-
-| Variable | Purpose |
-| --- | --- |
-| `ZETARIS_BASE_URL`, `ZETARIS_ORG_ID`, `ZETARIS_USERNAME`, `ZETARIS_PASSWORD` | Zetaris instance |
-| `SIFT_PROVIDER` | `nvidia` (OpenAI-compatible bridge) or `meterless` |
-| `NVIDIA_BASE_URL`, `NVIDIA_API_KEY`, `NVIDIA_MODEL_FAST`, `NVIDIA_MODEL_DEEP` | OpenAI-compatible bridge and model names |
-| `METERLESS_BASE_URL`, `METERLESS_RUNTIME_TOKEN`, `METERLESS_MODEL` | Meterless Runtime |
-| `SCOUT_SIGNING_KEY` | signs execution contracts |
-
-## Layout
-
-- `app/` Next.js UI and API routes (`/api/investigate` streams the run over SSE)
-- `lib/scout.ts` intent registry, guard and signed contracts
-- `lib/hmem.ts` hierarchical memory with provenance and a trust ledger
-- `lib/markovian.ts` chunked reasoning engine
-- `lib/zetaris.ts` Zetaris REST client
-- `lib/agent.ts` the investigation loop and prompts
-- `lib/ai.ts` model providers
-
-## Data
-
-All data in the demo is synthetic. No real borrower or personal information is used.
+Support: adityakulkarnicoding@gmail.com
