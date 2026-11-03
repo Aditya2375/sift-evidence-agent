@@ -55,7 +55,7 @@ export async function meterlessChat(cfg: MeterlessConfig, messages: ChatMessage[
     }),
     signal: AbortSignal.timeout(180_000), // a cold model load can take minutes
   });
-  if (!res.ok) throw new Error(`Meterless runtime: HTTP ${res.status} ${await res.text().then((t) => t.slice(0, 200)).catch(() => "")}`);
+  if (!res.ok) throw new Error(`Runtime: HTTP ${res.status}`);
   const data = await res.json();
   return data?.choices?.[0]?.message?.content ?? "";
 }
@@ -66,7 +66,7 @@ export interface NvidiaConfig { apiKey: string; model: string; baseUrl?: string 
 export async function nvidiaChat(cfg: NvidiaConfig, messages: ChatMessage[], opts?: { temperature?: number; maxTokens?: number }): Promise<string> {
   const base = cfg.baseUrl ?? "https://integrate.api.nvidia.com/v1";
   // Hosted lanes occasionally return transient 503/429 under load; retry with backoff.
-  const delays = [0, 3000, 8000, 15000, 25000, 35000];
+  const delays = [0]; // Never auto-retry possibly billable generation.
   let lastErr: unknown;
   for (let attempt = 0; attempt < delays.length; attempt++) {
     if (delays[attempt]) await new Promise((r) => setTimeout(r, delays[attempt]));
@@ -93,7 +93,7 @@ export async function nvidiaChat(cfg: NvidiaConfig, messages: ChatMessage[], opt
       return data?.choices?.[0]?.message?.content ?? "";
     }
     const body = (await res.text().catch(() => "")).slice(0, 200);
-    lastErr = new Error(`NVIDIA NIM: HTTP ${res.status} ${body}`);
+    lastErr = new Error(`Provider: HTTP ${res.status}`);
     if (res.status !== 429 && res.status < 500) break; // auth/bad-request: retrying won't help
   }
   throw lastErr instanceof Error ? lastErr : new Error(String(lastErr));
@@ -108,16 +108,7 @@ export interface RuntimeConfig {
 }
 
 export async function agentChat(cfg: RuntimeConfig, messages: ChatMessage[], lane: "fast" | "deep" = "fast"): Promise<string> {
-  if (cfg.provider === "meterless") {
-    const model = lane === "deep" ? "meterless/deep" : "meterless/fast";
-    try {
-      return await meterlessChat(cfg.meterless, messages, { model });
-    } catch (e) {
-      // A hosted demo cannot reach a laptop hotspot; fall through to the same
-      // configured hosted OpenAI-compatible lane so the product still runs.
-      if (!cfg.nvidia.apiKey) throw e;
-    }
-  }
+  if(cfg.provider==="meterless")return meterlessChat(cfg.meterless,messages,{model:lane==="deep"?"meterless/deep":"meterless/fast"});
   const model = lane === "deep" ? cfg.nvidia.modelDeep ?? cfg.nvidia.model : cfg.nvidia.model;
   return nvidiaChat(cfg.nvidia, messages, { maxTokens: lane === "deep" ? 800 : 800 });
 }
