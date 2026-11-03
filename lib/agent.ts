@@ -98,7 +98,7 @@ export async function investigate(question: string, emit: (e: AgentEvent) => voi
     } else if (burM) {
       const id = "E" + (++evN);
       const rows = bureauHistory(burM[1].toUpperCase());
-      evidence.push({ id, kind: "bureau", label: "Bureau score history " + burM[1].toUpperCase(), detail: "Bureau REST API", rows });
+      evidence.push({ id, kind: "bureau", label: "Synthetic bureau score history " + burM[1].toUpperCase(), detail: "Local deterministic synthetic bureau function (not a network API call)", rows });
       toolBlock = `\n[TOOL RESULT ${id}] bureau history:\n` + JSON.stringify(rows.slice(0, 18));
       emit({ type: "tool", data: { id, kind: "bureau", borrowerId: burM[1].toUpperCase(), sample: rows.slice(-6) } });
     }
