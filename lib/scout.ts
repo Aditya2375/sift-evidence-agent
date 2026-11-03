@@ -1,6 +1,6 @@
 // Scout Intent engine: sense -> interpret -> guard -> route -> recommend.
 // Every action runs on a signed execution contract; raw prompts never reach tools.
-import { createHmac } from "crypto";
+import { createHmac, randomBytes, timingSafeEqual } from "crypto";
 
 export type Risk = "low" | "medium" | "high" | "block";
 
@@ -90,14 +90,16 @@ function scoreIntent(prompt: string, intent: Intent): number {
   return weight === 0 ? 0 : matched / weight;
 }
 
+const processKey=randomBytes(32).toString("hex");
 function sign(payload: string): string {
-  const secret = process.env.SCOUT_SIGNING_KEY || "sift-dev-signing-key";
+  const secret = process.env.SCOUT_SIGNING_KEY || processKey;
   return createHmac("sha256", secret).update(payload).digest("hex").slice(0, 32);
 }
 
 export function verifyContract(c: ExecutionContract): boolean {
   const { signature, ...rest } = c;
-  return signature === sign(JSON.stringify(rest));
+  const age=Date.now()-Date.parse(c.issuedAt);if(!Number.isFinite(age)||age<0||age>5*60*1000)return false;
+  const a=Buffer.from(String(signature)),b=Buffer.from(sign(JSON.stringify(rest)));return a.length===b.length&&timingSafeEqual(a,b);
 }
 
 export async function decide(input: { prompt: string; surface?: string; role?: string }): Promise<Decision> {
@@ -123,6 +125,7 @@ export async function decide(input: { prompt: string; surface?: string; role?: s
     return { kind: "refuse", candidates, flags, reason: "No registered intent matches this request. Sift acts only on registered credit intents." };
   }
 
+  if(candidates.some(c=>REGISTRY.find(i=>i.id===c.intent)?.riskClass==="block"))return {kind:"refuse",candidates,flags:["risk:block"],reason:"Bulk personal-data requests are refused regardless of other matching intents."};
   const top = REGISTRY.find((i) => i.id === candidates[0].intent)!;
   const confidence = candidates[0].score;
 
@@ -151,7 +154,7 @@ export async function decide(input: { prompt: string; surface?: string; role?: s
 
   // Recommend + sign: the only artifact downstream engines accept.
   const unsigned = {
-    traceId: "trc_" + Math.random().toString(36).slice(2, 12),
+    traceId: "trc_" + crypto.randomUUID(),
     intent: top.id, params, risk, registryVersion: REGISTRY_VERSION,
     issuedAt: new Date().toISOString(), surface,
   };
