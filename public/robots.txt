@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+Disallow: /api/
+Sitemap: https://sift-evidence-agent.vercel.app/sitemap.xml
