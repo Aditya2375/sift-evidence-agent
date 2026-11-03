@@ -35,28 +35,33 @@ export default function Console() {
   const [health, setHealth] = useState<Any>(null);
   const [action, setAction] = useState<Any>(null);
   const [actionResult, setActionResult] = useState<string>("");
+  const abortRef=useRef<AbortController|null>(null);
   const traceRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    fetch("/api/health").then((r) => r.json()).then(setHealth).catch(() => setHealth(null));
+    fetch("/api/health",{signal:AbortSignal.timeout(8000)}).then((r) => r.json()).then(setHealth).catch(() => setHealth(null));
   }, []);
   useEffect(() => {
     traceRef.current?.scrollTo({ top: traceRef.current.scrollHeight, behavior: "smooth" });
   }, [chunks, tools, report]);
 
   async function ask(question: string) {
+    if(running||!question.trim())return;
+    const controller=new AbortController();abortRef.current=controller;const timer=setTimeout(()=>controller.abort(),240000);
+    try{
     setRunning(true); setScout(null); setMemories([]); setChunks([]); setTools([]);
     setReport(""); setEvidence([]); setStats(null); setRefusal(""); setAction(null); setActionResult("");
     const res = await fetch("/api/investigate", {
-      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ question }),
+      method: "POST", signal:controller.signal,headers: { "Content-Type": "application/json" }, body: JSON.stringify({ question }),
     });
-    const reader = res.body!.getReader();
+    if(!res.ok)throw Error((await res.json()).error||"Investigation unavailable");
+    if(!res.body)throw Error("No response stream");const reader = res.body.getReader();
     const dec = new TextDecoder();
     let buf = "";
     for (;;) {
       const { done, value } = await reader.read();
       if (done) break;
-      buf += dec.decode(value, { stream: true });
+      buf += dec.decode(value, { stream: true });if(buf.length>1000000){await reader.cancel();throw Error("Response too large")}
       const parts = buf.split("\n\n"); buf = parts.pop() || "";
       for (const p of parts) {
         if (!p.startsWith("data: ")) continue;
@@ -73,24 +78,11 @@ export default function Console() {
         if (ev.type === "error") setRefusal(String(ev.data));
       }
     }
-    setRunning(false);
+    }catch(e){setRefusal(e instanceof Error?e.message:"Connection interrupted")}finally{clearTimeout(timer);abortRef.current=null;setRunning(false)}
   }
 
-  async function draftAction() {
-    setRunning(true); setAction(null); setActionResult("");
-    const res = await fetch("/api/action", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ prompt: GUARDED }) });
-    const data = await res.json();
-    if (data.refused) setRefusal(data.reason);
-    else setAction(data);
-    setRunning(false);
-  }
-
-  async function decideAction(approved: boolean) {
-    const res = await fetch("/api/action", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ approveId: action.actionId, approved }) });
-    const data = await res.json();
-    setActionResult(data.note || data.status);
-    setAction(null);
-  }
+  async function draftAction(){setRefusal("Private model-backed demo is paused. A deployed authenticated gateway and usage budget are required before enabling generation.")}
+  async function decideAction(approved:boolean){setActionResult(approved?"Demo acknowledgment only. No borrower file written or external send.":"Draft discarded in this view.");setAction(null)}
 
   const stageState = (n: number) => {
     if (n === 1) return scout ? "done" : running ? "active" : "";
@@ -105,13 +97,14 @@ export default function Console() {
         <span className="wordmark">Sift<em>.</em></span>
         <span className="tagline">Ask why. Get an investigation with receipts, not a vibe.</span>
         <span className="status-dot mono">
-          <span>Zetaris {health ? (health.zetaris?.ok ? <b className="ok">federated</b> : <b className="bad">down</b>) : <b className="warn">...</b>}</span>
-          <span>Reasoning {health ? <b className="ok">{health.provider === "meterless" ? "meterless" : "gemini"}</b> : <b className="warn">...</b>}</span>
+          <span>Zetaris {health ? (health.zetaris?.ok ? <b className="ok">federated</b> : <b className="warn">unverified</b>) : <b className="warn">...</b>}</span>
+          <span>Reasoning {health ? <b className="warn">configured, not probed</b> : <b className="warn">...</b>}</span>
         </span>
       </header>
 
+      <p className="demo-note">Synthetic demonstration only, not lending advice. Model-backed endpoints are paused for unauthenticated callers. Zetaris connectivity and actual model identity are not verified by this public page. New runs do not retain case memory. No letters are sent or borrower files written.</p>
       <div className="ask">
-        <input value={q} onChange={(e) => setQ(e.target.value)} onKeyDown={(e) => e.key === "Enter" && !running && ask(q)} placeholder="Ask a why question about the book..." />
+        <input aria-label="Synthetic portfolio question" maxLength={2000} value={q} onChange={(e) => setQ(e.target.value)} onKeyDown={(e) => e.key === "Enter" && !running && ask(q)} placeholder="Ask a why question about the book..." />
         <button disabled={running} onClick={() => ask(q)}>{running ? "Investigating" : "Investigate"}</button>
       </div>
       <div className="samples">
@@ -130,7 +123,7 @@ export default function Console() {
             {scout?.contract && (
               <div className={`stage ${stageState(1)}`}>
                 <h4>1 · Sense, guard &amp; sign</h4>
-                <div className="body">Scout classified the request and issued a signed execution contract. Nothing downstream sees the raw prompt.</div>
+                <div className="body">Scout classified the request and issued a signed execution contract. The bound question is still passed to the model; classification is not a prompt-injection defense.</div>
                 <div className="contract mono">
                   <div className="row"><span className="k">intent</span><span className="v">{scout.contract.intent}</span></div>
                   <div className="row"><span className="k">risk</span><span className={`v risk-${scout.contract.risk}`}>{scout.contract.risk}</span></div>
@@ -166,7 +159,7 @@ export default function Console() {
                 ))}
                 {tools.map((t, i) => (
                   <div className={`toolcall ${t.error ? "err" : ""}`} key={i}>
-                    <div className="meta">{t.kind === "sql" ? "Zetaris Lightning SQL" : "Bureau REST"} {t.id ? `· evidence ${t.id}` : ""} {t.rowCount != null ? `· ${t.rowCount} rows` : ""}</div>
+                    <div className="meta">{t.kind === "sql" ? "Zetaris Lightning SQL" : "Synthetic bureau function"} {t.id ? `· evidence ${t.id}` : ""} {t.rowCount != null ? `· ${t.rowCount} rows` : ""}</div>
                     <pre>{t.sql ? t.sql : t.error ? t.error : JSON.stringify(t.sample, null, 1)}</pre>
                   </div>
                 ))}
@@ -183,10 +176,10 @@ export default function Console() {
             {action && (
               <div className="action-card">
                 <h4>Human approval required - high-risk action under contract {action.contract?.traceId}</h4>
-                <div className="body" style={{ fontSize: 12.5, color: "var(--dim)" }}>Scout issued a high-risk contract. The draft exists, but nothing leaves the building until an analyst approves it.</div>
+                <div className="body" style={{ fontSize: 12.5, color: "var(--dim)" }}>Scout issued a high-risk contract. The draft exists, but this is a simulation only: approval writes no borrower file and sends nothing.</div>
                 <pre>{action.draft}</pre>
                 <div className="btns">
-                  <button className="yes" onClick={() => decideAction(true)}>Approve &amp; release</button>
+                  <button className="yes" onClick={() => decideAction(true)}>Acknowledge demo draft</button>
                   <button className="no" onClick={() => decideAction(false)}>Reject</button>
                 </div>
               </div>
@@ -201,9 +194,9 @@ export default function Console() {
               <h3>Markovian run</h3>
               <div className="stats">
                 <span><b>{stats.chunks?.length}</b>chunks</span>
-                <span><b>{stats.totalTokensUsed}</b>tokens used</span>
-                <span><b>{stats.totalTokensSaved}</b>tokens saved vs naive</span>
-                <span><b>{stats.efficiencyPercent}%</b>efficiency</span>
+                <span><b>{stats.totalTokensUsed}</b>estimated tokens</span>
+                <span><b>{stats.totalTokensSaved}</b>estimated savings vs full-history baseline</span>
+                <span><b>{stats.efficiencyPercent}%</b>estimated reduction</span>
                 <span><b>{(stats.durationMs / 1000).toFixed(1)}s</b>duration</span>
                 <span><b>{stats.status}</b>status</span>
               </div>
@@ -225,7 +218,7 @@ export default function Console() {
       </div>
 
       <footer>
-        Sift investigates on a signed Scout contract, recalls prior cases from hierarchical memory, reasons in bounded Markovian chunks, and queries a Zetaris Lightning federation - ledger CSVs, field notes and a REST-registered bureau feed joined in one SQL plane. Reasoning runs on the Meterless Runtime contract (Gemini lanes over the OpenAI-compatible bridge on this hosted demo; a local Nightshift hotspot works unchanged). Demo data is fully synthetic.
+        Synthetic data only. No credit decision, borrower communication or persistent case file is produced. The configured provider is not verified merely because a key exists. Tool evidence may still be incomplete or mistaken. Source: <a href="https://github.com/Aditya2375/sift-evidence-agent">GitHub</a>. Technical support: <a href="mailto:adityakulkarnicoding@gmail.com">adityakulkarnicoding@gmail.com</a>.
       </footer>
     </div>
   );
