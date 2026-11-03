@@ -1,3 +1,4 @@
+import { validateReadSql } from "./safety";
 // Zetaris REST client. Talks to the running Zetaris platform through its UI
 // origin, which proxies /api/* to the Lightning API. Verified contract:
 //   POST /api/auth/login            {username, password} -> {idToken, orgId, ...}
@@ -44,6 +45,8 @@ async function login(cfg: ZetarisConfig): Promise<{ token: string; orgId: string
 }
 
 export async function runSql(cfg: ZetarisConfig, sql: string, limit = 500): Promise<QueryResult> {
+  if(!/^SELECT 1 AS one$/i.test(sql.trim()))sql=validateReadSql(sql);
+  limit=Math.min(200,Math.max(1,Math.trunc(limit)));
   const { token, orgId } = await login(cfg);
   const res = await fetch(`${cfg.baseUrl}/api/proxy/query/sql/start`, {
     method: "POST",
@@ -61,7 +64,7 @@ export async function runSql(cfg: ZetarisConfig, sql: string, limit = 500): Prom
     throw new Error(`Zetaris query: HTTP ${res.status} ${text.slice(0, 300)}`);
   }
   const out = (await res.json()) as { records?: Record<string, unknown>[] };
-  const rows = out.records ?? [];
+  const rows = Array.isArray(out.records)?out.records.slice(0,limit):[];
   const columns = rows.length > 0 ? Object.keys(rows[0]) : [];
   return { columns, rows, rowCount: rows.length };
 }
