@@ -66,7 +66,7 @@ export async function runMarkovian(opts: {
   };
 
   let carryover = opts.initialContext ? await opts.compress(opts.initialContext, config.carryoverTokens) : "";
-  let naiveCumulative = estTokens(opts.goal.length + (opts.initialContext?.length || 0));
+  let historyChars=opts.initialContext?.length||0,naiveCumulative=0;
 
   try {
     for (let step = 1; step <= config.maxChunks; step++) {
@@ -87,7 +87,8 @@ export async function runMarkovian(opts: {
       opts.onChunk?.(chunk);
 
       // Naive full-history baseline: every step would resend everything.
-      naiveCumulative = naiveCumulative * 2 + estTokens(res.content.length);
+      naiveCumulative+=estTokens(opts.goal.length+historyChars+res.content.length);
+      historyChars+=res.content.length;
       run.totalTokensSaved = Math.max(0, naiveCumulative - run.totalTokensUsed);
 
       if (res.done || /(^|\n)\s*CONCLUDE\s*$/m.test(res.content)) { run.status = "completed"; break; }
