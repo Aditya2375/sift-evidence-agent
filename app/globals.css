@@ -103,3 +103,7 @@ header.top { display: flex; align-items: baseline; gap: 14px; border-bottom: 1px
 .pulse { animation: pulse 1.2s ease-in-out infinite; }
 @keyframes pulse { 50% { opacity: 0.35; } }
 footer { margin-top: 34px; color: var(--faint); font-size: 12px; line-height: 1.7; border-top: 1px solid var(--line); padding-top: 16px; }
+
+.demo-note{margin-top:18px;padding:14px;border:1px solid var(--amber);color:var(--dim);font-size:13px;line-height:1.6}button:focus-visible,a:focus-visible,input:focus-visible{outline:2px solid var(--blue);outline-offset:3px}.ask input{min-width:0}.panel,.grid>*{min-width:0}pre,.report{overflow-wrap:anywhere}footer a{color:var(--blue)}@media(max-width:600px){.ask{flex-wrap:wrap}.ask input{flex-basis:100%}.status-dot{flex-wrap:wrap}header.top{flex-wrap:wrap}.shell{padding:18px 14px}.stats{flex-wrap:wrap}}@media(prefers-reduced-motion:reduce){*{scroll-behavior:auto!important;animation:none!important;transition:none!important}}
+
+@media(max-width:800px){.grid{display:flex;flex-direction:column;gap:16px}.grid>*{width:100%}.samples button{max-width:100%;white-space:normal;overflow-wrap:anywhere}}
